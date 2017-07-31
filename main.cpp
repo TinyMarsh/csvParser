@@ -3,47 +3,64 @@
 
 #include "main.h"
 
+/*
+This is a program which contains a parser for combiPeptData, calculatedRTs and peakAreas csv files outputted by Pescal++
+
+Though really, this program fetches peptides which shared between Mascot and X!Tandem search results and outputs the calculated retention times and peak areas of these peptides
+*/
+
 int main(){
 
 	//We will fetch all the sequence, modification position, and charge for each peptide and store them in vectors
 
+	//...said vectors...
 	std::vector<std::string> mascotSequences;
 	std::vector<std::string> mascotModPos;
 	std::vector<std::string> mascotCharges;
 
+	//this function fills said vectors
 	getMascot(mascotSequences, mascotModPos, mascotCharges);
 
+	//more of said vectors, but these will hold the X!Tandem peptides
 	std::vector<std::string> xTandemSequences;
 	std::vector<std::string> xTandemModPos;
 	std::vector<std::string> xTandemCharges;
 
+	//this is another function filling said vectors, but this time for X!Tandem results
 	getXTandem(xTandemSequences, xTandemModPos, xTandemCharges);
 
-	//We'll store the peptide db IDs of peptides which are identical between each identification software
+	//We'll store the peptide db IDs of peptides which are identical between each identification software in this handy vector of type pair
 	std::vector<std::pair<int, int> > matchedIndexes; 
 
-	//for every mascot sequence, modpos, and charge, check if there exists an xTandem equivalent. If there is, store the db ID from Mascot and X!Tandem in an int pair
+	//Now we will fill the above handy vector. For every mascot sequence, modpos, and charge, check if there exists an xTandem equivalent. If there is, store the db ID from Mascot and X!Tandem in an int pair
+	//While we're here, we might as well output all these matched peptides to a file "sharedPeptides.csv"
+	std::ofstream file("sharedPeptides.csv");
 	int xTandemIndex=0;
 	for(int i=0, size=mascotSequences.size(); i<size; ++i){
 		int compare = mascotSequences[i].compare(xTandemSequences[xTandemIndex]);
-		while(compare==0){
-			if(mascotModPos[i]==xTandemModPos[xTandemIndex] && mascotCharges[i]==xTandemCharges[xTandemIndex]){
-				std::pair<int, int> indexes;
-				indexes.first = i;
-				indexes.second = xTandemIndex;
-				matchedIndexes.push_back(indexes);
-			}
-			if(xTandemIndex<xTandemSequences.size()){
-				++xTandemIndex;
-				compare = mascotSequences[i].compare(xTandemSequences[xTandemIndex]);
-			} else{
-				break;
-			}
-		}
-
 		while(compare>0 && xTandemIndex<xTandemSequences.size()){
 			++xTandemIndex;
 			compare = mascotSequences[i].compare(xTandemSequences[xTandemIndex]);
+		}
+		bool found=0;
+		int tempIndex=xTandemIndex;
+		while(compare==0&&!found){
+			if(mascotModPos[i]==xTandemModPos[tempIndex] && mascotCharges[i]==xTandemCharges[tempIndex]){
+				found=1;
+				std::pair<int, int> indexes;
+				indexes.first = i;
+				indexes.second = tempIndex;
+				matchedIndexes.push_back(indexes);
+
+				//this is the bit where we output the matched peptides to the file
+				file << mascotSequences[i] << "," << mascotModPos[i] << "," << mascotCharges[i] << "\n";
+			}
+			if(tempIndex<xTandemSequences.size()){
+				++tempIndex;
+				compare = mascotSequences[i].compare(xTandemSequences[tempIndex]);
+			} else{
+				break;
+			}
 		}
 	}
 
@@ -64,8 +81,8 @@ int main(){
 	//output the quant for each matched peptide to a file "comparedQuants.csv"
 	std::ofstream quantFile("comparedQuants.csv");
 	for(int i=0, size=matchedIndexes.size(); i<size; ++i){
-		if(!(mascotQuants[matchedIndexes[i].first]<10000000 || xTandemQuants[matchedIndexes[i].second]<1000)){
-			quantFile << mascotQuants[matchedIndexes[i].first] << "," << xTandemQuants[matchedIndexes[i].second] << "\n";
+		if(!(mascotQuants[matchedIndexes[i].first]==0 || xTandemQuants[matchedIndexes[i].second]==0)){
+			quantFile << matchedIndexes[i].first << "," << mascotQuants[matchedIndexes[i].first] << "," << xTandemQuants[matchedIndexes[i].second] << "\n";
 		}
 	}
 
@@ -79,14 +96,14 @@ int main(){
 	//And store these retention times to file "comparedRTs.csv"
 	std::ofstream RTFile("comparedRTs.csv");
 	for(int i=0, size=matchedIndexes.size(); i<size; ++i){
-		RTFile << mascotRTs[matchedIndexes[i].first] << "," << xTandemRTs[matchedIndexes[i].second] << "\n";
+		RTFile << matchedIndexes[i].first << "," << mascotRTs[matchedIndexes[i].first] << "," << xTandemRTs[matchedIndexes[i].second] << "\n";
 	}
 
 }
 
 void getMascot(std::vector<std::string> &mascotSequences, std::vector<std::string> &mascotModPos, std::vector<std::string> &mascotCharges){
 
-	std::ifstream file("C:\\data\\CTAM\\Pescal++\\mascot\\combiPeptData.csv");
+	std::ifstream file("F:\\data\\CTAM\\analysis\\mascotPosOfMod\\combiPeptData.csv");
 
 	std::string value;
 
@@ -127,7 +144,7 @@ void getMascot(std::vector<std::string> &mascotSequences, std::vector<std::strin
 void getXTandem(std::vector<std::string> &xTandemSequences, std::vector<std::string> &xTandemModPos, std::vector<std::string> &xTandemCharges){
 
 
-	std::ifstream file("C:\\data\\CTAM\\Pescal++\\xtandem\\combiPeptData.csv");
+	std::ifstream file("F:\\data\\CTAM\\analysis\\peptideShakerPosOfMod\\combiPeptData.csv");
 
 	std::string value;
 
@@ -175,7 +192,7 @@ void getXTandem(std::vector<std::string> &xTandemSequences, std::vector<std::str
 }
 
 void getMascotQuants(std::vector<double> &mascotQuants){
-	std::ifstream file("C:\\data\\CTAM\\Pescal++\\mascot\\peakAreas.csv");
+	std::ifstream file("F:\\data\\CTAM\\analysis\\mascotPosOfMod\\peakAreas.csv");
 
 	std::string value;
 
@@ -199,7 +216,7 @@ void getMascotQuants(std::vector<double> &mascotQuants){
 }
 
 void getXTandemQuants(std::vector<double> &xTandemQuants){
-	std::ifstream file("C:\\data\\CTAM\\Pescal++\\xtandem\\peakAreas.csv");
+	std::ifstream file("F:\\data\\CTAM\\analysis\\peptideShakerPosOfMod\\peakAreas.csv");
 
 	std::string value;
 
@@ -223,7 +240,7 @@ void getXTandemQuants(std::vector<double> &xTandemQuants){
 }
 
 void getMascotRTs(std::vector<double> &mascotRTs){
-	std::ifstream file("C:\\data\\CTAM\\Pescal++\\mascot\\calculatedRTs.csv");
+	std::ifstream file("F:\\data\\CTAM\\analysis\\mascotPosOfMod\\calculatedRTs.csv");
 
 	std::string value;
 
@@ -247,7 +264,7 @@ void getMascotRTs(std::vector<double> &mascotRTs){
 }
 
 void getXTandemRTs(std::vector<double> &xTandemRTs){
-	std::ifstream file("C:\\data\\CTAM\\Pescal++\\xtandem\\calculatedRTs.csv");
+	std::ifstream file("F:\\data\\CTAM\\analysis\\peptideShakerPosOfMod\\calculatedRTs.csv");
 
 	std::string value;
 
